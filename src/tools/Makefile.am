@@ -5,7 +5,7 @@ EXTRA_DIST = Makefile.mak versioninfo-tools.rc.in
 
 noinst_HEADERS = util.h
 bin_PROGRAMS = opensc-tool opensc-explorer pkcs15-tool pkcs15-crypt \
-	pkcs11-tool cardos-tool eidenv openpgp-tool iasecc-tool
+	pkcs11-tool cardos-tool cardos5-tool eidenv openpgp-tool iasecc-tool
 if ENABLE_OPENSSL
 bin_PROGRAMS += cryptoflex-tool pkcs15-init netkey-tool piv-tool \
 	westcos-tool sc-hsm-tool dnie-tool
@@ -38,6 +38,8 @@ pkcs15_init_SOURCES = pkcs15-init.c util.c
 pkcs15_init_LDADD = $(OPTIONAL_OPENSSL_LIBS)
 cardos_tool_SOURCES = cardos-tool.c util.c
 cardos_tool_LDADD = $(OPTIONAL_OPENSSL_LIBS)
+cardos5_tool_SOURCES = cardos5-tool.c util.c
+cardos5_tool_LDADD = $(OPTIONAL_OPENSSL_LIBS)
 eidenv_SOURCES = eidenv.c util.c
 netkey_tool_SOURCES = netkey-tool.c
 netkey_tool_LDADD = $(OPTIONAL_OPENSSL_LIBS)
