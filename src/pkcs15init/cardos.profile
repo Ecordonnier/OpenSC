@@ -8,6 +8,18 @@ cardinfo {
     pin-pad-char	= 0x00;
 }
 
+option default {
+	macros {
+		df_acl		= UPDATE=$SOPIN;
+	}
+}
+
+option onepin {
+	macros {
+		df_acl		= UPDATE=$PIN;
+	}
+}
+
 # Define reasonable limits for PINs and PUK
 # We set the reference for SO pin+puk here, because
 # those are hard-coded (if a PUK us assigned).
@@ -35,7 +47,7 @@ filesystem {
 	    # Prevent unauthorized updates of basic security
 	    # objects via PUT DATA OCI.
 	    # ACL = UPDATE=NEVER;
-	    ACL = UPDATE=$SOPIN;
+	    ACL = $df_acl;
 
 	    # Bump the size of the EF(PrKDF) - with split
 	    # keys, we may need a little more room.
