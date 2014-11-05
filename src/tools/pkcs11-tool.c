@@ -3380,7 +3380,7 @@ static int test_signature(CK_SESSION_HANDLE sess)
 	CK_MECHANISM_TYPE firstMechType;
 	CK_SESSION_INFO sessionInfo;
 	CK_ULONG        i, j;
-	unsigned char   data[256];
+	unsigned char   data[1024];
 	CK_ULONG        modLenBytes = 0;
 	CK_ULONG        dataLen;
 	unsigned char   sig1[1024], sig2[1024];
