@@ -63,6 +63,7 @@ struct _sc_driver_entry {
 
 static const struct _sc_driver_entry internal_card_drivers[] = {
 	{ "cardos",	(void *(*)(void)) sc_get_cardos_driver },
+	{ "cardos5",	(void *(*)(void)) sc_get_cardos5_driver },
 	{ "flex",	(void *(*)(void)) sc_get_cryptoflex_driver },
 	{ "cyberflex",	(void *(*)(void)) sc_get_cyberflex_driver },
 #ifdef ENABLE_OPENSSL

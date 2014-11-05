@@ -83,6 +83,10 @@ enum {
 	SC_CARDCTL_CARDOS_PUT_DATA_OCI,
 	SC_CARDCTL_CARDOS_PUT_DATA_SECI,
 	SC_CARDCTL_CARDOS_GENERATE_KEY,
+	SC_CARDCTL_CARDOS_ACCUMULATE_OBJECT_DATA,
+	SC_CARDCTL_CARDOS_EXTRACT_KEY,
+	SC_CARDCTL_CARDOS_INIT_CARD,
+	SC_CARDCTL_CARDOS_PUT_DATA_ECD,
 
 	/*
 	 * Starcos SPK 2.3 specific calls
@@ -360,6 +364,18 @@ struct sc_cardctl_cardos_genkey_info {
 	unsigned int	key_id;
 	unsigned int	key_bits;
 	unsigned short	fid;
+};
+
+struct sc_cardctl_cardos5_genkey_info {
+	unsigned char *	data;
+	size_t		len;
+};
+
+struct sc_cardctl_cardos_acc_obj_info {
+	int		append;
+	unsigned char	hash[32];
+	unsigned char *	data;
+	size_t		len;
 };
 
 /*

@@ -484,6 +484,7 @@ case "${enable_openssl}" in
 esac
 
 if test "${enable_openssl}" = "yes"; then
+	AC_CHECK_HEADERS(openssl/cmac.h, [], [AC_MSG_WARN([openssl/cmac.h not found]) ])
 	if test "${have_openssl}" = "yes"; then
 		AC_DEFINE([ENABLE_OPENSSL], [1], [Have OpenSSL libraries and header files])
 	else

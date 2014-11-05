@@ -47,6 +47,7 @@ enum {
 	SC_CARD_TYPE_CARDOS_CIE_V1, /* Italian CIE (eID) v1 */
 	SC_CARD_TYPE_CARDOS_M4_4,
 	SC_CARD_TYPE_CARDOS_V5_0,
+	SC_CARD_TYPE_CARDOS_V5_3,
 
 	/* flex/cyberflex drivers */
 	SC_CARD_TYPE_FLEX_BASE = 2000,
@@ -204,6 +205,7 @@ enum {
 
 extern sc_card_driver_t *sc_get_default_driver(void);
 extern sc_card_driver_t *sc_get_cardos_driver(void);
+extern sc_card_driver_t *sc_get_cardos5_driver(void);
 extern sc_card_driver_t *sc_get_cryptoflex_driver(void);
 extern sc_card_driver_t *sc_get_cyberflex_driver(void);
 extern sc_card_driver_t *sc_get_gpk_driver(void);

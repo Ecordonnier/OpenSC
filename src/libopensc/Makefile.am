@@ -11,7 +11,7 @@ noinst_HEADERS = cards.h ctbcs.h internal.h esteid.h muscle.h muscle-filesystem.
 	cardctl.h asn1.h log.h \
 	errors.h types.h compression.h itacns.h iso7816.h \
 	authentic.h iasecc.h iasecc-sdo.h sm.h card-sc-hsm.h \
-	pace.h cwa14890.h user-interface.h cwa-dnie.h
+	pace.h cwa14890.h user-interface.h cwa-dnie.h card-cardos5.h
 
 AM_CPPFLAGS = -DOPENSC_CONF_PATH=\"$(sysconfdir)/opensc.conf\" \
 	-I$(top_srcdir)/src
@@ -31,7 +31,7 @@ libopensc_la_SOURCES = \
 	ctbcs.c reader-ctapi.c reader-pcsc.c reader-openct.c \
 	\
 	card-setcos.c card-miocos.c card-flex.c card-gpk.c \
-	card-cardos.c card-tcos.c card-default.c \
+	card-cardos.c card-cardos5.c card-tcos.c card-default.c \
 	card-mcrd.c card-starcos.c card-openpgp.c card-jcop.c \
 	card-oberthur.c card-belpic.c card-atrust-acos.c \
 	card-entersafe.c card-epass2003.c \
