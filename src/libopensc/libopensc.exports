@@ -282,6 +282,7 @@ sc_pkcs15init_get_miocos_ops
 sc_pkcs15init_get_muscle_ops
 sc_pkcs15init_get_oberthur_ops
 sc_pkcs15init_get_pin_info
+sc_pkcs15init_get_pin_reference
 sc_pkcs15init_get_rutoken_ops
 sc_pkcs15init_get_rtecp_ops
 sc_pkcs15init_get_serial
