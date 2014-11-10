@@ -294,8 +294,7 @@ parse_df_arl(sc_card_t *card, sc_file_t *file, const uint8_t *arl, size_t len)
 	 * call sc_file_add_acl_entry() accordingly.
 	 */
 
-	if (len == 9 && arl[5] == ARL_DUMMY_TAG && arl[6] == ARL_DUMMY_LEN &&
-	    arl[7] == ARL_ALWAYS_TAG && arl[8] == ARL_ALWAYS_LEN) {
+	if (file->id == 0x3f00) {
 		for (i = 0; i < df_acl_n; i++) {
 			if (df_acl[i].op_byte != -1U) {
 				r = sc_file_add_acl_entry(file,
