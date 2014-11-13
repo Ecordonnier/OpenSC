@@ -3588,8 +3588,10 @@ pkcs15_prkey_decrypt(struct sc_pkcs11_session *session, void *obj,
 	struct sc_pkcs11_card *p11card = session->slot->card;
 	struct pkcs15_fw_data *fw_data = NULL;
 	struct pkcs15_prkey_object *prkey;
-	unsigned char decrypted[256]; /* FIXME: Will not work for keys above 2048 bits */
+	unsigned char *decrypted;
+	size_t decrypted_len;
 	int	buff_too_small, rv, flags = 0, prkey_has_path = 0;
+	CK_RV r;
 
 	sc_log(context, "Initiating decryption.");
 
@@ -3619,34 +3621,52 @@ pkcs15_prkey_decrypt(struct sc_pkcs11_session *session, void *obj,
 		return CKR_MECHANISM_INVALID;
 	}
 
+	decrypted_len = prkey->prv_info->modulus_length / 8;
+	decrypted = calloc(1, decrypted_len);
+	if (decrypted == NULL)
+		return CKR_HOST_MEMORY;
+
 	rv = sc_lock(p11card->card);
-	if (rv < 0)
-		return sc_to_cryptoki_error(rv, "C_Decrypt");
+	if (rv < 0) {
+		r = sc_to_cryptoki_error(rv, "C_Decrypt");
+		goto out;
+	}
 
 	rv = sc_pkcs15_decipher(fw_data->p15_card, prkey->prv_p15obj, flags,
-			pEncryptedData, ulEncryptedDataLen, decrypted, sizeof(decrypted));
+			pEncryptedData, ulEncryptedDataLen, decrypted,
+			decrypted_len);
 
 	if (rv < 0 && !sc_pkcs11_conf.lock_login && !prkey_has_path)
 		if (reselect_app_df(fw_data->p15_card) == SC_SUCCESS)
 			rv = sc_pkcs15_decipher(fw_data->p15_card, prkey->prv_p15obj, flags,
-					pEncryptedData, ulEncryptedDataLen, decrypted, sizeof(decrypted));
+					pEncryptedData, ulEncryptedDataLen,
+					decrypted, decrypted_len);
 
 	sc_unlock(p11card->card);
 
 	sc_log(context, "Decryption complete. Result %d.", rv);
 
-	if (rv < 0)
-		return sc_to_cryptoki_error(rv, "C_Decrypt");
+	if (rv < 0) {
+		r = sc_to_cryptoki_error(rv, "C_Decrypt");
+		goto out;
+	}
 
 	buff_too_small = (*pulDataLen < (CK_ULONG)rv);
 	*pulDataLen = rv;
-	if (pData == NULL_PTR)
-		return CKR_OK;
-	if (buff_too_small)
-		return CKR_BUFFER_TOO_SMALL;
+	if (pData == NULL_PTR) {
+		r = CKR_OK;
+		goto out;
+	}
+	if (buff_too_small) {
+		r = CKR_BUFFER_TOO_SMALL;
+		goto out;
+	}
 	memcpy(pData, decrypted, *pulDataLen);
+	r = CKR_OK;
 
-	return CKR_OK;
+out:
+	free(decrypted);
+	return r;
 }
 
 
