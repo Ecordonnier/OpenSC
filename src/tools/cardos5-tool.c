@@ -808,9 +808,9 @@ void
 push_curve_parameters(const struct curve_parameters *p)
 {
 	uint8_t		sha256[32];
-	uint8_t		ecd_buf[256];
-	uint8_t		obj_buf[256];
-	uint8_t		payload_buf[256];
+	uint8_t		ecd_buf[512];
+	uint8_t		obj_buf[512];
+	uint8_t		payload_buf[512];
 	buf_t		ecd;
 	buf_t		obj;
 	buf_t		payload;
