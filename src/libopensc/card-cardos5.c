@@ -1042,6 +1042,72 @@ bail:
 }
 
 static int
+cardos5_decipher(sc_card_t *card, const unsigned char *data, size_t data_len,
+    unsigned char *out, size_t outlen)
+{
+	sc_apdu_t	apdu;
+	uint8_t		*payload;
+	size_t		 payload_len;
+	int		 r;
+
+	if (SIZE_MAX - data_len < 1 || outlen < 2 || outlen > INT_MAX - 2) {
+		sc_log(card->ctx, "invalid arguments data_len=%zu, outlen=%zu",
+		    data_len, outlen);
+		return SC_ERROR_INVALID_ARGUMENTS;
+	}
+
+	sc_log(card->ctx, "XXX outlen=%zu", outlen);
+
+	payload_len = data_len + 1;
+	payload = calloc(1, payload_len);
+	if (payload == NULL) {
+		sc_log(card->ctx, "calloc");
+		return SC_ERROR_OUT_OF_MEMORY;
+	}
+
+	/* payload[0] = 0x00 (Padding Indicator Byte) */
+	memcpy(payload + 1, data, data_len);
+	memset(&apdu, 0, sizeof(apdu));
+	apdu.cse = SC_APDU_CASE_4_EXT;
+	apdu.ins = CARDOS5_PERFORM_SECURITY_OPERATION_INS;
+	apdu.p1 = CARDOS5_PERFORM_SECURITY_OPERATION_P1_DECIPHER;
+	apdu.p2 = CARDOS5_PERFORM_SECURITY_OPERATION_P2_DECIPHER;
+	apdu.data = payload;
+	apdu.datalen = payload_len;
+	apdu.lc = payload_len;
+	apdu.resp = out + 1;
+	apdu.resplen = outlen - 1;
+	apdu.le = outlen - 1;
+
+	r = sc_transmit_apdu(card, &apdu);
+
+	free(payload);
+
+	if (r != SC_SUCCESS) {
+		sc_log(card->ctx, "tx/rx error");
+		return r;
+	}
+
+	if ((r = sc_check_sw(card, apdu.sw1, apdu.sw2)) != SC_SUCCESS) {
+		sc_log(card->ctx, "command failed");
+		return r;
+	}
+
+	if (apdu.resplen + 1 > INT_MAX) {
+		sc_log(card->ctx, "reply too large (%zu bytes)", apdu.resplen);
+		return SC_ERROR_WRONG_LENGTH;
+	}
+
+	/*
+	 * Restore leading zero stripped by the card -- unfortunately, there
+	 * doesn't seem to be a way to prevent this.
+	 */
+	out[0] = 0x00;
+
+	return (int)apdu.resplen + 1;
+}
+
+static int
 cardos5_compute_signature(sc_card_t *card, const unsigned char *data,
     size_t datalen, unsigned char *out, size_t outlen)
 {
@@ -1333,6 +1399,7 @@ sc_get_cardos5_driver(void)
 	cardos5_ops.create_file = cardos5_create_file;
 	cardos5_ops.set_security_env = cardos5_set_security_env;
 	cardos5_ops.restore_security_env = cardos5_restore_security_env;
+	cardos5_ops.decipher = cardos5_decipher;
 	cardos5_ops.compute_signature = cardos5_compute_signature;
 
 	cardos5_ops.list_files = cardos5_list_files;
