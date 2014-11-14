@@ -277,7 +277,73 @@ cardos5_finish(sc_card_t *card)
 static int
 cardos5_list_files(sc_card_t *card, unsigned char *buf, size_t buflen)
 {
-	return SC_ERROR_NOT_SUPPORTED;
+	sc_apdu_t apdu;
+	u8        rbuf[256], offset = 0;
+	const u8  *p = rbuf, *q;
+	int       r;
+	size_t    fids = 0, len;
+
+	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_VERBOSE);
+
+	/* 0x16: DIRECTORY */
+	/* 0x02: list both DF and EF */
+
+get_next_part:
+	sc_format_apdu(card, &apdu, SC_APDU_CASE_2_SHORT, 0x16, 0x02, offset);
+	apdu.cla = 0x80;
+	apdu.le = 256;
+	apdu.resplen = 256;
+	apdu.resp = rbuf;
+
+	r = sc_transmit_apdu(card, &apdu);
+	SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, r, "APDU transmit failed");
+	r = sc_check_sw(card, apdu.sw1, apdu.sw2);
+	SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, r, "DIRECTORY command returned error");
+
+	if (apdu.resplen > 256) {
+		sc_debug(card->ctx, SC_LOG_DEBUG_NORMAL, "directory listing > 256 bytes, cutting");
+	}
+
+	len = apdu.resplen;
+	while (len != 0) {
+		size_t   tlen = 0, ilen = 0;
+		/* is there a file informatin block (0x6f) ? */
+		p = sc_asn1_find_tag(card->ctx, p, len, 0x6f, &tlen);
+		if (p == NULL) {
+			sc_debug(card->ctx, SC_LOG_DEBUG_NORMAL, "directory tag missing");
+			return SC_ERROR_INTERNAL;
+		}
+		if (tlen == 0)
+			/* empty directory */
+			break;
+		q = sc_asn1_find_tag(card->ctx, p, tlen, 0x86, &ilen);
+		if (q == NULL || ilen != 2) {
+			sc_debug(card->ctx, SC_LOG_DEBUG_NORMAL, "error parsing file id TLV object");
+			return SC_ERROR_INTERNAL;
+		}
+		/* put file id in buf */
+		if (buflen >= 2) {
+			buf[fids++] = q[0];
+			buf[fids++] = q[1];
+			buflen -= 2;
+		} else
+			/* not enough space left in buffer => break */
+			break;
+		/* extract next offset */
+		q = sc_asn1_find_tag(card->ctx, p, tlen, 0x8a, &ilen);
+		if (q != NULL && ilen == 1) {
+			offset = (u8)ilen;
+			if (offset != 0)
+				goto get_next_part;
+		}
+		//3: 1 byte tag + 2 bytes length (long form!)
+		len -= tlen + 3;
+		p   += tlen;
+	}
+
+	r = fids;
+
+	SC_FUNC_RETURN(card->ctx, SC_LOG_DEBUG_NORMAL, r);
 }
 
 static int
