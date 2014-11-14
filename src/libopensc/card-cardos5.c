@@ -208,6 +208,63 @@ bertlv_put_tag(uint8_t tag, const uint8_t *data, size_t length, buf_t *buf)
 }
 
 static int
+bertlv_get_tag(uint16_t tag, uint8_t **tag_content, uint16_t *tag_length,
+    buf_t *buf)
+{
+	uint8_t	c;
+
+	if (tag > 0xFF) {
+		if (buf->size - buf->bytes_used < 2)
+			return -1;
+		if (*(buf->ptr)++ != (uint8_t)(tag >> 8) ||
+		    *(buf->ptr)++ != (uint8_t)(tag))
+			return -1;
+		buf->bytes_used += 2;
+	} else {
+		if (buf->size - buf->bytes_used < 1)
+			return -1;
+		if (*(buf->ptr)++ != (uint8_t)(tag))
+			return -1;
+		buf->bytes_used += 1;
+	}
+
+	if (buf->size - buf->bytes_used < 1)
+		return -1;
+
+	c = *(buf->ptr)++;
+	buf->bytes_used += 1;
+
+	if (c < 0x80)
+		*tag_length = c;
+	else if (c == 0x81) {
+		if (buf->size - buf->bytes_used < 1)
+			return -1;
+		buf->bytes_used += 1;
+		*tag_length = *(buf->ptr)++;
+	} else if (c == 0x82) {
+		if (buf->size - buf->bytes_used < 2)
+			return -1;
+		buf->bytes_used += 2;
+		*tag_length = (uint16_t)(*(buf->ptr)++ << 8);
+		*tag_length |= *(buf->ptr)++;
+	} else
+		return -1;
+
+	if (buf->size - buf->bytes_used < *tag_length)
+		return -1;
+
+	if (tag_content != NULL) {
+		if ((*tag_content = malloc(*tag_length)) == NULL)
+			return -1;
+		memcpy(*tag_content, buf->ptr, *tag_length);
+		buf->ptr += *tag_length;
+		buf->bytes_used += *tag_length;
+	}
+
+	return 0;
+}
+
+static int
 cardos5_match_card(sc_card_t *card)
 {
 	if (_sc_match_atr(card, cardos5_atrs, &card->type) < 0)
@@ -275,9 +332,133 @@ cardos5_finish(sc_card_t *card)
 }
 
 static int
+parse_entry(struct sc_context *ctx, buf_t *entries, uint8_t *entry_buf,
+    uint16_t entry_len, uint8_t *next_offset)
+{
+	uint8_t		 tag;
+	uint8_t		*tag_ptr;
+	uint16_t	 tag_len;
+	buf_t		 entry;
+
+	buf_init(&entry, entry_buf, entry_len);
+
+	while (entry.size - entry.bytes_used >= 2) {
+		tag = entry.ptr[0];
+		if (bertlv_get_tag(tag, &tag_ptr, &tag_len, &entry)) {
+			sc_log(ctx, "asn1 error");
+			return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+		}
+		if (tag == FILE_ID_TAG) {
+			if (tag_len != 2) {
+				free(tag_ptr);
+				sc_log(ctx, "wrong tag len");
+				return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+			}
+			if (entries->size - entries->bytes_used < 2) {
+				free(tag_ptr);
+				sc_log(ctx, "partial directory listing");
+				return SC_ERROR_BUFFER_TOO_SMALL;
+			}
+			entries->ptr[0] = tag_ptr[0];
+			entries->ptr[1] = tag_ptr[1];
+			entries->ptr += 2;
+			entries->bytes_used += 2;
+		} else if (tag == FILE_NEXT_OFFSET_TAG) {
+			if (tag_len != 1) {
+				free(tag_ptr);
+				sc_log(ctx, "wrong tag len");
+				return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+			}
+			*next_offset = tag_ptr[0];
+		}
+		free(tag_ptr);
+	}
+
+	/* make sure we parsed the complete directory entry */
+	if (entry.bytes_used != entry.size) {
+		sc_log(ctx, "only parsed %zu out of %zu directory entry",
+		    entry.bytes_used, entry.size);
+		return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+	}
+
+	return SC_SUCCESS;
+}
+
+static int
+list_page(sc_card_t *card, buf_t *entries, uint8_t offset, uint8_t *next_offset)
+{
+	struct sc_context	*ctx = card->ctx;
+	sc_apdu_t		 apdu;
+	uint8_t			 page_buf[256];
+	uint8_t			*entry = NULL;
+	uint16_t		 entry_len;
+	buf_t			 page;
+	int			 r;
+
+	memset(&apdu, 0, sizeof(apdu));
+	apdu.cse = SC_APDU_CASE_2_SHORT;
+	apdu.cla = CARDOS5_DIRECTORY_CLA;
+	apdu.ins = CARDOS5_DIRECTORY_INS;
+	apdu.p1 = CARDOS5_DIRECTORY_P1;
+	apdu.p2 = offset;
+	apdu.le = sizeof(page_buf);
+	apdu.resp = page_buf;
+	apdu.resplen = sizeof(page_buf);
+
+	if ((r = sc_transmit_apdu(card, &apdu)) != SC_SUCCESS) {
+		sc_log(ctx, "tx/rx error");
+		return r;
+	}
+
+	if ((r = sc_check_sw(card, apdu.sw1, apdu.sw2)) != SC_SUCCESS) {
+		sc_log(ctx, "command failed");
+		return r;
+	}
+
+	if (apdu.resplen > sizeof(page_buf)) {
+		sc_log(ctx, "invalid apdu.resplen=%zu", (size_t)apdu.resplen);
+		return SC_ERROR_WRONG_LENGTH;
+	}
+
+	buf_init(&page, page_buf, apdu.resplen);
+
+	while (bertlv_get_tag(DIR_ENTRY_TAG, &entry, &entry_len, &page) == 0) {
+		r = parse_entry(ctx, entries, entry, entry_len, next_offset);
+		free(entry);
+		if (r != SC_SUCCESS)
+			return r;
+	}
+
+	/* make sure we parsed the complete directory page */
+	if (page.bytes_used != page.size) {
+		sc_log(ctx, "only parsed %zu out of %zu directory bytes",
+		    page.bytes_used, page.size);
+		return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+	}
+
+	return SC_SUCCESS;
+}
+
+static int
 cardos5_list_files(sc_card_t *card, unsigned char *buf, size_t buflen)
 {
-	return SC_ERROR_NOT_SUPPORTED;
+	uint8_t	offset;
+	uint8_t	next_offset;
+	buf_t	entries;
+	int	r;
+
+	next_offset = 0;
+	buf_init(&entries, buf, buflen);
+
+	do {
+		offset = next_offset;
+		r = list_page(card, &entries, offset, &next_offset);
+		if (r != SC_SUCCESS)
+			return r;
+	} while (offset != next_offset);
+
+	/* return number of bytes used for extracted file IDs */
+	return entries.bytes_used;
 }
 
 static int
